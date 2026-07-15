@@ -62,6 +62,9 @@ HTML_FIGURE_RE = re.compile(
     r'<figure id="([^"]+)"[^>]*>\s*<img\s+([^>]*?)\s*/>\s*<figcaption>(.*?)</figcaption>\s*</figure>',
     re.DOTALL,
 )
+PANDOC_TABLE_RE = re.compile(
+    r"(?m)(?P<table>^(?:\|.*\|\n)+)\n?:\s+(?P<caption>.+?)\s+\{#(?P<label>tab:[^}]+)\}\s*$"
+)
 IMG_SRC_RE = re.compile(r'src="([^"]+)"')
 IMG_WIDTH_RE = re.compile(r'width:\s*([0-9.]+)%')
 
@@ -269,6 +272,23 @@ def replace_html_figures(markdown: str) -> str:
     return HTML_FIGURE_RE.sub(figure_repl, markdown)
 
 
+def replace_pandoc_tables(markdown: str) -> str:
+    """Turn labelled Pandoc pipe tables into numbered MyST table directives."""
+
+    def table_repl(match: re.Match[str]) -> str:
+        table = match.group("table").rstrip()
+        caption = match.group("caption").strip()
+        label = match.group("label")
+        return (
+            f"\n\n:::{{table}} {caption}\n"
+            f":name: {label}\n\n"
+            f"{table}\n"
+            ":::\n"
+        )
+
+    return PANDOC_TABLE_RE.sub(table_repl, markdown)
+
+
 def replace_display_equations(markdown: str) -> str:
     def math_directive(body: str, environment: str | None = None) -> str:
         label_match = re.search(r"\\label\{([^}]+)\}", body)
@@ -357,6 +377,7 @@ def polish_markdown(markdown: str) -> str:
     markdown = replace_pdf_figures(markdown)
     markdown = replace_heading_targets(markdown)
     markdown = replace_html_figures(markdown)
+    markdown = replace_pandoc_tables(markdown)
     markdown = replace_pandoc_refs(markdown)
     markdown = replace_display_equations(markdown)
     markdown = clean_html_math_spans(markdown)
